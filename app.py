@@ -236,9 +236,9 @@ def reset_defaults():
 # ---------------------------------------------------------------------------
 
 def main():
-    st.set_page_config(page_title="FaceApp MVP", layout="wide")
-    st.title("FaceApp MVP")
-    st.caption("Local face editing - no cloud, no training. Powered by MediaPipe + OpenCV.")
+    st.set_page_config(page_title="GlowUp", layout="wide")
+    st.title("GlowUp")
+    st.caption("You, but on your best day. Natural face enhancement powered by AI.")
 
     init_session_state()
 
