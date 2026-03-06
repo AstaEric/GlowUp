@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.venv/
+my_defaults.json
+my_filters.json
