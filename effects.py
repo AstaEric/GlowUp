@@ -1,5 +1,5 @@
 """
-Image processing effects for FaceApp MVP.
+Image processing effects for GlowUp.
 Each effect takes an image, landmarks, and an intensity (0..1) and returns the modified image.
 """
 

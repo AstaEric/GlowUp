@@ -1,5 +1,5 @@
 """
-FaceApp MVP - Streamlit entry point.
+GlowUp - Streamlit entry point.
 Local face editing with toggles and sliders.
 """
 
@@ -440,7 +440,7 @@ def main():
     st.download_button(
         label="Download edited photo",
         data=buf.tobytes(),
-        file_name="faceapp_result.png",
+        file_name="glowup_result.png",
         mime="image/png",
     )
 
