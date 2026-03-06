@@ -306,15 +306,15 @@ def main():
     h, w = original.shape[:2]
     st.caption(f"Original size: {w} x {h}")
 
-    # Downscale large images for processing (keep original for final output)
-    MAX_DIM = 1920
+    # Downscale for processing — effects run on the smaller image for speed
+    MAX_DIM = 1024
     scale = 1.0
     if max(h, w) > MAX_DIM:
         scale = MAX_DIM / max(h, w)
         proc_image = cv2.resize(original, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-        st.caption(f"Processing at: {proc_image.shape[1]} x {proc_image.shape[0]} (scaled down for speed)")
+        st.caption(f"Processing at: {proc_image.shape[1]} x {proc_image.shape[0]}")
     else:
-        proc_image = original
+        proc_image = original.copy()
 
     # Detect face
     detector = FaceDetector()
@@ -323,13 +323,8 @@ def main():
 
     if landmarks is None:
         st.error("No face detected. Please upload a clear portrait photo with a visible face.")
-        # Still show original
         st.image(cv2.cvtColor(original, cv2.COLOR_BGR2RGB), caption="Original (no face detected)")
         return
-
-    # If we downscaled for detection, scale landmarks back to original size
-    if scale < 1.0:
-        landmarks = [(int(x / scale), int(y / scale)) for x, y in landmarks]
 
     # Build settings dict
     settings = {}
@@ -339,10 +334,10 @@ def main():
             "intensity": st.session_state[f"{key}_intensity"],
         }
 
-    # Apply effects
+    # Apply effects on the smaller image (much faster)
     start = time.time()
     with st.spinner("Applying effects..."):
-        result = apply_effects(original, landmarks, settings)
+        result = apply_effects(proc_image, landmarks, settings)
     elapsed = time.time() - start
     logger.info(f"Effects applied in {elapsed:.2f}s")
 
@@ -350,17 +345,23 @@ def main():
     if st.session_state["debug_overlay"]:
         result = draw_debug_overlay(result, landmarks)
 
-    # Encode images as base64 for the HTML component
-    _, after_buf = cv2.imencode(".png", result)
-    _, before_buf = cv2.imencode(".png", original)
+    # Encode images as JPEG for faster transfer
+    encode_params = [cv2.IMWRITE_JPEG_QUALITY, 90]
+    _, after_buf = cv2.imencode(".jpg", result, encode_params)
+    # Scale original to match result size for before/after comparison
+    if scale < 1.0:
+        original_display = cv2.resize(original, (result.shape[1], result.shape[0]), interpolation=cv2.INTER_AREA)
+    else:
+        original_display = original
+    _, before_buf = cv2.imencode(".jpg", original_display, encode_params)
     after_b64 = base64.b64encode(after_buf).decode()
     before_b64 = base64.b64encode(before_buf).decode()
 
     # Display with click-to-reveal-original
     st.components.v1.html(f"""
     <div id="img-container" style="position:relative;cursor:pointer;user-select:none;-webkit-user-select:none;">
-        <img id="after-img" src="data:image/png;base64,{after_b64}" style="width:100%;display:block;" draggable="false"/>
-        <img id="before-img" src="data:image/png;base64,{before_b64}" style="width:100%;display:none;position:absolute;top:0;left:0;" draggable="false"/>
+        <img id="after-img" src="data:image/jpeg;base64,{after_b64}" style="width:100%;display:block;" draggable="false"/>
+        <img id="before-img" src="data:image/jpeg;base64,{before_b64}" style="width:100%;display:none;position:absolute;top:0;left:0;" draggable="false"/>
         <div id="label" style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.55);color:#fff;padding:4px 10px;border-radius:4px;font:600 14px/1 sans-serif;pointer-events:none;">After</div>
     </div>
     <p style="text-align:center;color:#888;font:12px sans-serif;margin-top:6px;">Click and hold to see original</p>
@@ -435,14 +436,31 @@ def main():
 
     st.markdown("---")
 
-    # Download button
-    _, buf = cv2.imencode(".png", result)
-    st.download_button(
-        label="Download edited photo",
-        data=buf.tobytes(),
-        file_name="glowup_result.png",
-        mime="image/png",
-    )
+    # Download — apply effects at full resolution for quality
+    if scale < 1.0:
+        full_landmarks = [(int(x / scale), int(y / scale)) for x, y in landmarks]
+        download_col1, download_col2 = st.columns([3, 1])
+        with download_col1:
+            if st.button("🖼️ Prepare full-resolution download", use_container_width=True):
+                with st.spinner("Applying effects at full resolution..."):
+                    full_result = apply_effects(original, full_landmarks, settings)
+                _, buf = cv2.imencode(".png", full_result)
+                st.session_state["_full_res_data"] = buf.tobytes()
+        if "_full_res_data" in st.session_state:
+            st.download_button(
+                label="Download edited photo (full resolution)",
+                data=st.session_state["_full_res_data"],
+                file_name="glowup_result.png",
+                mime="image/png",
+            )
+    else:
+        _, buf = cv2.imencode(".png", result)
+        st.download_button(
+            label="Download edited photo",
+            data=buf.tobytes(),
+            file_name="glowup_result.png",
+            mime="image/png",
+        )
 
 
 if __name__ == "__main__":
